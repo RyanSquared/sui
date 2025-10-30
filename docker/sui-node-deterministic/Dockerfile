@@ -10,6 +10,7 @@ FROM stagex/core-llvm@sha256:bc1c6d67aa73a96dd92f5def7e2701de78b0639d0c815d69110
 FROM stagex/core-lld@sha256:a5cb61edc071d404cd33cb0b5c7113a334cb90ca203cb40fe6cafd3559b6daa5 AS lld
 FROM stagex/core-libffi@sha256:9acd18e59ca11fa727670725e69a976d96f85a00704dea6ad07870bff2bd4e8b AS libffi
 FROM stagex/core-make@sha256:a47d8f67f8fd74905f724fdc5f0d18e29df96391751754947bdeaba9bef8f7d8 AS make
+FROM stagex/user-strace AS strace
 
 FROM pallet-rust AS build
 ARG PROFILE
@@ -22,19 +23,24 @@ COPY --from=llvm . /
 COPY --from=lld . /
 COPY --from=libffi . /
 COPY --from=make . /
+COPY --from=strace . /
 
 ENV RUST_BACKTRACE=1
+# TODO: move these flags to the Debian based version and see if we can reproduce
+# and if we don't, buy a lot of amaretto
 ENV RUSTFLAGS="-C codegen-units=1"
-ENV RUSTFLAGS="${RUSTFLAGS} -C target-feature=+crt-static"
-ENV RUSTFLAGS="${RUSTFLAGS} -C linker=/usr/bin/clang"
-ENV RUSTFLAGS="${RUSTFLAGS} -C link-arg=-fuse-ld=lld -C link-arg=-Wl,--threads=1 -C link-arg=-L/opt/cross/x86_64-linux-gnu/lib"
-ENV RUSTFLAGS="${RUSTFLAGS} -C link-arg=-Wl,-z,nostart-stop-gc"
+# ENV RUSTFLAGS="${RUSTFLAGS} -C target-feature=+crt-static"
+# ENV RUSTFLAGS="${RUSTFLAGS} -C linker=/usr/bin/clang"
+# ENV RUSTFLAGS="${RUSTFLAGS} -C link-arg=-fuse-ld=lld -C link-arg=-Wl,--threads=1 -C link-arg=-L/opt/cross/x86_64-linux-gnu/lib"
+# ENV RUSTFLAGS="${RUSTFLAGS} -C link-arg=-Wl,-z,nostart-stop-gc"
+ENV RUSTFLAGS="${RUSTFLAGS} -C linker=/opt/cross/bin/x86_64-linux-gnu-ld"
 
 COPY . .
 RUN cargo fetch
-RUN --network=none cargo build --frozen --profile $PROFILE --bin sui-node
+# RUN --network=none strace -e execve -s 1000000 -f cargo build --frozen --profile $PROFILE --bin sui-node 2> strace.log
+RUN --network=none cargo build --frozen --profile $PROFILE --bin sui-node --target ${CARGO_BUILD_TARGET} || true
 
-FROM scratch AS package
-ARG PROFILE
-ARG CARGO_BUILD_TARGET
-COPY --from=build /target/${CARGO_BUILD_TARGET}/${PROFILE}/sui-node /opt/sui/bin/
+# FROM scratch AS package
+# ARG PROFILE
+# ARG CARGO_BUILD_TARGET
+# COPY --from=build /target/${CARGO_BUILD_TARGET}/${PROFILE}/sui-node /opt/sui/bin/

@@ -39,5 +39,6 @@ docker build -f "$DOCKERFILE" "$REPO_ROOT" \
 	--build-arg BUILD_DATE="$BUILD_DATE" \
 	--build-arg PROFILE="$PROFILE" \
 	--platform "$PLATFORM" \
+	--progress plain \
 	--output type=oci,rewrite-timestamp=true,force-compression=true,tar=false,dest=$OCI_OUTPUT/sui-node,name=sui-node \
 	"$@"
